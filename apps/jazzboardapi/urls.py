@@ -8,6 +8,8 @@ urlpatterns = [
     path('logout/', views.logOut.as_view()),
     path('signup/', views.signup.as_view()),
     path('accountdelete/', views.accountDelete.as_view()),
+    path('comments/<int:page>/', views.CommentsList.as_view()),
+    path('commentsDetail/<int:pk>/', views.CommentsDetail.as_view()),
 ]
 
 urlpatterns = format_suffix_patterns(urlpatterns)
