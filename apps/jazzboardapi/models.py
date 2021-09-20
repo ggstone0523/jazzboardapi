@@ -13,6 +13,15 @@ class text(models.Model):
 
 class comment(models.Model):
     content = models.TextField()
-    owner = models.ForeignKey('auth.User', related_name='comments', on_delete=models.CASCADE)
-    text = models.ForeignKey(text, related_name='comments', on_delete=models.CASCADE)
+    owner = models.ForeignKey('auth.User', related_name='comment', on_delete=models.CASCADE)
+    text = models.ForeignKey(text, related_name='comment', on_delete=models.CASCADE)
     
+class comComment(models.Model):
+    content = models.TextField()
+    owner = models.ForeignKey('auth.User', related_name='comComment', on_delete=models.CASCADE)
+    comment = models.ForeignKey(comment, related_name='comComment', on_delete=models.CASCADE)
+
+class chat(models.Model):
+    content = models.TextField()
+    owner = models.ForeignKey('auth.User', related_name='chat_from', on_delete=models.CASCADE)
+    toOwner = models.ForeignKey('auth.User', related_name='chat_to', on_delete=models.CASCADE)
