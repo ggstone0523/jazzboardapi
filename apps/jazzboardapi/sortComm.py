@@ -1,9 +1,23 @@
-def sortedComment(y):
+def sortedComment(y, username):
+	anonymousDict = {}
+	anonymousIdx = 1
+
 	for ys in y:
 		if ys['toComment'] == None:
 			ys['toComment'] = ys['id']
 		else:
 			ys['toComment'] = int(ys['toComment'])
+		
+		if (ys['anonymous'] == True) and (ys['owner'] != username):
+			if ys['owner'] in anonymousDict:
+				ys['owner'] = anonymousDict[ys['owner']]
+			else:
+				anonymousDict[ys['owner']] = '익명' + str(anonymousIdx)
+				ys['owner'] = anonymousDict[ys['owner']]
+				anonymousIdx = anonymousIdx + 1
+		
+		if (ys['hidden'] == True) and (ys['owner'] != username):
+			ys['content'] = '이 댓글은 작성자에 의해 비공개 처리되었습니다.'
 
 	for i in range(1, len(y)):
 		j = i - 1

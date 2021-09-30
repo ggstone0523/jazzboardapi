@@ -14,15 +14,22 @@ class CommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = comment
-        fields = ['id', 'content', 'owner', 'text', 'toComment']
+        fields = ['id', 'content', 'hidden', 'anonymous', 'owner', 'text', 'toComment']
 
-class TextSerializer(serializers.ModelSerializer):
+class TextsSerializer(serializers.ModelSerializer):
+    owner = serializers.ReadOnlyField(source='owner.username')
+
+    class Meta:
+        model = text
+        fields = ['id', 'title', 'hidden', 'anonymous', 'content', 'create_date', 'owner']
+
+class TextCommentSerializer(serializers.ModelSerializer):
     owner = serializers.ReadOnlyField(source='owner.username')
     comment = CommentSerializer(many=True, read_only=True)
 
     class Meta:
         model = text
-        fields = ['id', 'title', 'content', 'create_date', 'owner', 'comment']
+        fields = ['id', 'title', 'hidden', 'anonymous', 'content', 'create_date', 'owner', 'comment']
 
 class ChatSerializer(serializers.ModelSerializer):
     owner = serializers.ReadOnlyField(source='owner.username')

@@ -1,11 +1,11 @@
 from .models import text, BearerAuthentication, comment, chat
-from .serializers import UserSerializer, TextSerializer, CommentSerializer, ChatSerializer
+from .serializers import UserSerializer, TextsSerializer, CommentSerializer, ChatSerializer, TextCommentSerializer
 from rest_framework import generics, permissions, status
 from .permissions import IsOwnerOrReadOnly
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AnonymousUser, User
 from django.db.models import Q
 from .sortComm import sortedComment
 
@@ -18,19 +18,28 @@ class UserList(generics.ListAPIView):
 
 class TextList(generics.ListCreateAPIView):
     queryset = text.objects.all()
-    serializer_class = TextSerializer
+    serializer_class = TextsSerializer
     authentication_classes = [BearerAuthentication]
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get(self, request, format=None):
+        user = request.user
         try:
-            texts = text.objects.all()
+            if not isinstance(user, AnonymousUser):
+                texts = text.objects.filter(
+                    Q(hidden=False)
+                    |
+                    Q(owner=user)
+                )
+            else:
+                texts = text.objects.filter(hidden=False)
         except:
             return Response({'dosent have text'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = TextSerializer(texts, many=True)
+        serializer = TextsSerializer(texts, many=True)
         serializer_data = serializer.data
         for i in range(len(serializer_data)):
-            serializer_data[i]['comment'] = sortedComment(serializer_data[i]['comment'])
+            if (serializer_data[i]['anonymous'] == True) and (serializer_data[i]['owner'] != request.user.username):
+                serializer_data[i]['owner'] = '익명'
         return Response(serializer_data)
 
     def perform_create(self, serializer):
@@ -38,9 +47,21 @@ class TextList(generics.ListCreateAPIView):
 
 class TextDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = text.objects.all()
-    serializer_class = TextSerializer
+    serializer_class = TextCommentSerializer
     authentication_classes = [BearerAuthentication]
     permission_classes = [IsOwnerOrReadOnly]
+
+    def get(self, request, pk, format=None):
+        try:
+            texts = text.objects.get(pk=pk)
+        except:
+            return Response({'dosent have text'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = TextCommentSerializer(texts)
+        serializer_data = serializer.data
+        serializer_data['comment'] = sortedComment(serializer_data['comment'], request.user.username)
+        if (serializer_data['anonymous'] == True) and (serializer_data['owner'] != request.user.username):
+            serializer_data['owner'] = '익명'
+        return Response(serializer_data)
 
 class logOut(APIView):
 
@@ -115,7 +136,7 @@ class CommentList(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class CommentDetail(generics.RetrieveUpdateDestroyAPIView):
+class CommentDetail(generics.UpdateAPIView, generics.DestroyAPIView):
     queryset = comment.objects.all()
     serializer_class = CommentSerializer
     authentication_classes = [BearerAuthentication]
