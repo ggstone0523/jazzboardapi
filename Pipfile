@@ -8,6 +8,7 @@ django = "*"
 djangorestframework = "*"
 httpie = "*"
 locust = "*"
+django-cors-headers = "*"
 
 [dev-packages]
 

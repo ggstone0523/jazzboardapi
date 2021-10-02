@@ -16,6 +16,36 @@ class UserList(generics.ListAPIView):
     authentication_classes = [BearerAuthentication]
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
+class TextSearch(APIView):
+    authentication_classes = [BearerAuthentication]
+
+    def post(self, request, format=None):
+        user = request.user
+        try:
+            searchValue = request.data['searchValue']
+            if not isinstance(user, AnonymousUser):
+                if request.data['searchKey'] == 'title':
+                    texts = text.objects.filter((Q(hidden=False) | Q(owner=user)) & Q(title=searchValue))
+                elif request.data['searchKey'] == 'owner':
+                    texts = text.objects.filter((Q(hidden=False) | Q(owner=user)) & Q(owner__username=searchValue))
+                else:
+                    texts = text.objects.filter(Q(hidden=False) | Q(owner=user))
+            else:
+                if request.data['searchKey'] == 'title':
+                    texts = text.objects.filter(Q(hidden=False) & Q(title=searchValue))
+                elif request.data['searchKey'] == 'owner':
+                    texts = text.objects.filter(Q(hidden=False) & Q(owner__username=searchValue))
+                else:
+                    texts = text.objects.filter(hidden=False)
+        except:
+            return Response({'dosent have text'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = TextsSerializer(texts, many=True)
+        serializer_data = serializer.data
+        for i in range(len(serializer_data)):
+            if (serializer_data[i]['anonymous'] == True) and (serializer_data[i]['owner'] != request.user.username):
+                serializer_data[i]['owner'] = '익명'
+        return Response(serializer_data)
+
 class TextList(generics.ListCreateAPIView):
     queryset = text.objects.all()
     serializer_class = TextsSerializer
@@ -71,7 +101,7 @@ class logOut(APIView):
         except Token.DoesNotExist:
             return Response({ "To log out, you need to log in" }, status=status.HTTP_404_NOT_FOUND)
         token.delete()
-        return Response({ "logout success" }, status=status.HTTP_204_NO_CONTENT)
+        return Response({ "logout success" })
 
 class signup(APIView):
 
