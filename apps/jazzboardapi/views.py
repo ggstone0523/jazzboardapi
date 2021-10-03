@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from django.contrib.auth.models import AnonymousUser, User
 from django.db.models import Q
 from .sortComm import sortedComment
+import re
 
 # Create your views here.
 class UserList(generics.ListAPIView):
@@ -38,7 +39,7 @@ class TextSearch(APIView):
                 else:
                     texts = text.objects.filter(hidden=False)
         except:
-            return Response({'dosent have text'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = TextsSerializer(texts, many=True)
         serializer_data = serializer.data
         for i in range(len(serializer_data)):
@@ -64,7 +65,7 @@ class TextList(generics.ListCreateAPIView):
             else:
                 texts = text.objects.filter(hidden=False)
         except:
-            return Response({'dosent have text'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = TextsSerializer(texts, many=True)
         serializer_data = serializer.data
         for i in range(len(serializer_data)):
@@ -85,7 +86,7 @@ class TextDetail(generics.RetrieveUpdateDestroyAPIView):
         try:
             texts = text.objects.get(pk=pk)
         except:
-            return Response({'dosent have text'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = TextCommentSerializer(texts)
         serializer_data = serializer.data
         serializer_data['comment'] = sortedComment(serializer_data['comment'], request.user.username)
@@ -99,7 +100,7 @@ class logOut(APIView):
         try:
             token = Token.objects.get(key=request.data['key'])
         except Token.DoesNotExist:
-            return Response({ "To log out, you need to log in" }, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
         token.delete()
         return Response({ "logout success" })
 
@@ -107,11 +108,20 @@ class signup(APIView):
 
     def post(self, request, format=None):
         try:
+            if request.data['name'] == '':
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+            if request.data['password'] == '' or not (len(request.data['password']) >= 5):
+                return Response({"You must enter at least 5 characters of the password"})
+            if request.data['email'] == '' or not re.match('\w+@\w+.\w+', request.data['email']):
+                return Response({'The email you entered does not fit into the usual email format'})
+        except:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        try:
             user = User.objects.create_user(request.data['name'], request.data['email'], request.data['password'])
         except:
-            return Response({ "signup must include name, email, password" }, status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
         user.save()
-        return Response({ "signup success" }, status=status.HTTP_204_NO_CONTENT)
+        return Response(1)
 
 class accountDelete(APIView):
 
@@ -119,14 +129,14 @@ class accountDelete(APIView):
         try:
             username = Token.objects.get(key=request.data['key'])
         except:
-            return Response({ "To accountDelete, you need to sign in" }, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
         try:
             user = User.objects.get(username=username.user)
         except:
-            return Response({ "no users" }, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
         user.delete()
-        return Response({ "delete account success" }, status=status.HTTP_204_NO_CONTENT)
-
+        return Response({ "delete account success" })
+    
 class CommentList(APIView):
 
     authentication_classes = [BearerAuthentication]
@@ -136,13 +146,13 @@ class CommentList(APIView):
         try:
             serializer = CommentSerializer(data=request.data)
         except:
-            return Response({"you must post data"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
         if serializer.is_valid():
             try:
                 textN = request.data['textN']
                 texts = text.objects.get(id=textN)
             except text.DoesNotExist:
-                return Response({ "There's no text" }, status=status.HTTP_404_NOT_FOUND)
+                return Response(status=status.HTTP_404_NOT_FOUND)
             try:
                 tocomment = request.data['toComment']
                 try:
@@ -154,7 +164,7 @@ class CommentList(APIView):
                     if len(arr) == 0:
                         raise Exception()
                 except:
-                    return Response({"didnt match text and comment"}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response(status=status.HTTP_400_BAD_REQUEST)
             except:
                 pass
             try:
@@ -184,7 +194,7 @@ class ChatGet(APIView):
                 Q(owner__username=request.data['otherOwner'], toOwner=request.user)
             )
         except chat.DoesNotExist:
-            return Response({ "this user don't send chat to you" }, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
         serialzier = ChatSerializer(Chat, many=True)
         return Response(serialzier.data)
 
@@ -196,12 +206,12 @@ class ChatPost(APIView):
         try:
             serializer = ChatSerializer(data = request.data)
         except:
-            return Response({" you must send data "}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
         if serializer.is_valid():
             try:
                 toowner = User.objects.get(username=request.data['toOwner'])
             except User.DoesNotExist:
-                return Response({" send user does not exist "}, status=status.HTTP_404_NOT_FOUND)
+                return Response(status=status.HTTP_404_NOT_FOUND)
             serializer.save(owner=request.user, toOwner=toowner)
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
