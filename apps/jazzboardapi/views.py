@@ -1,14 +1,15 @@
-from .models import text, BearerAuthentication, comment, chat
-from .serializers import UserSerializer, TextsSerializer, CommentSerializer, ChatSerializer, TextCommentSerializer
 from rest_framework import generics, permissions, status
-from .permissions import IsOwnerOrReadOnly
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth.models import AnonymousUser, User
-from django.db.models import Q
+from .serializers import UserSerializer, TextsSerializer, CommentSerializer, ChatSerializer, TextCommentSerializer
+from .permissions import IsOwnerOrReadOnly
+from .models import text, BearerAuthentication, comment, chat
 from .sortComm import sortedComment
-import re
+from .tasks import send_email
+from django.contrib.auth.models import User
+from django.core.validators import validate_email
+from django.db.models import Q
 
 # Create your views here.
 class UserList(generics.ListAPIView):
@@ -20,24 +21,17 @@ class UserList(generics.ListAPIView):
 class TextSearch(APIView):
     authentication_classes = [BearerAuthentication]
 
-    def post(self, request, format=None):
+    def get(self, request, format=None):
         user = request.user
         try:
-            searchValue = request.data['searchValue']
-            if not isinstance(user, AnonymousUser):
-                if request.data['searchKey'] == 'title':
-                    texts = text.objects.filter((Q(hidden=False) | Q(owner=user)) & Q(title=searchValue))
-                elif request.data['searchKey'] == 'owner':
-                    texts = text.objects.filter((Q(hidden=False) | Q(owner=user)) & Q(owner__username=searchValue))
-                else:
-                    texts = text.objects.filter(Q(hidden=False) | Q(owner=user))
+            searchValue = request.query_params['searchValue']
+            searchCond = request.query_params['searchCond']
+            if searchCond == 'title':
+                texts = text.objects.filter((Q(hidden=False) | Q(owner__username=user.username)) & Q(title=searchValue))
+            elif searchCond == 'owner':
+                texts = text.objects.filter((Q(hidden=False) | Q(owner__username=user.username)) & Q(owner__username=searchValue))
             else:
-                if request.data['searchKey'] == 'title':
-                    texts = text.objects.filter(Q(hidden=False) & Q(title=searchValue))
-                elif request.data['searchKey'] == 'owner':
-                    texts = text.objects.filter(Q(hidden=False) & Q(owner__username=searchValue))
-                else:
-                    texts = text.objects.filter(hidden=False)
+                texts = text.objects.filter(Q(hidden=False) | Q(owner__username=user.username))
         except:
             return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = TextsSerializer(texts, many=True)
@@ -56,14 +50,7 @@ class TextList(generics.ListCreateAPIView):
     def get(self, request, format=None):
         user = request.user
         try:
-            if not isinstance(user, AnonymousUser):
-                texts = text.objects.filter(
-                    Q(hidden=False)
-                    |
-                    Q(owner=user)
-                )
-            else:
-                texts = text.objects.filter(hidden=False)
+            texts = text.objects.filter(Q(hidden=False) | Q(owner__username=user.username))
         except:
             return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = TextsSerializer(texts, many=True)
@@ -109,11 +96,10 @@ class signup(APIView):
     def post(self, request, format=None):
         try:
             if request.data['name'] == '':
-                return Response(status=status.HTTP_400_BAD_REQUEST)
+                raise Exception()
             if request.data['password'] == '' or not (len(request.data['password']) >= 5):
-                return Response({"You must enter at least 5 characters of the password"})
-            if request.data['email'] == '' or not re.match('\w+@\w+.\w+', request.data['email']):
-                return Response({'The email you entered does not fit into the usual email format'})
+                raise Exception()
+            validate_email(request.data['email'])
         except:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         try:
@@ -121,7 +107,12 @@ class signup(APIView):
         except:
             return Response(status=status.HTTP_400_BAD_REQUEST)
         user.save()
-        return Response(1)
+        send_email.delay(
+            title="회원 가입이 완료되었습니다", 
+            content=f"{request.data['name']}님 회원가입을 축하드립니다",
+            email=request.data['email']
+        )
+        return Response({" singUp success "})
 
 class accountDelete(APIView):
 
@@ -134,7 +125,14 @@ class accountDelete(APIView):
             user = User.objects.get(username=username.user)
         except:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        name = user.username
+        email = user.email
         user.delete()
+        send_email.delay(
+            "회원 탈퇴가 완료되었습니다", 
+            f"{name}님 회원탈퇴가 완료되었습니다.",
+            email
+        )
         return Response({ "delete account success" })
     
 class CommentList(APIView):
@@ -151,27 +149,17 @@ class CommentList(APIView):
             try:
                 textN = request.data['textN']
                 texts = text.objects.get(id=textN)
-            except text.DoesNotExist:
-                return Response(status=status.HTTP_404_NOT_FOUND)
-            try:
-                tocomment = request.data['toComment']
-                try:
-                    arr = comment.objects.filter(
-                        Q(text__id = textN)
-                        & 
-                        Q(id = tocomment)
-                    )
+                if 'toComment' in request.data:
+                    tocomment = request.data['toComment']
+                    arr = comment.objects.filter(Q(text__id = textN) & Q(id = tocomment))
                     if len(arr) == 0:
-                        raise Exception()
-                except:
-                    return Response(status=status.HTTP_400_BAD_REQUEST)
+                        return Response(status=status.HTTP_400_BAD_REQUEST)
+                    comments = comment.objects.get(id = tocomment)
+                    serializer.save(owner=request.user, text=texts, toComment=comments)
+                else:
+                    serializer.save(owner=request.user, text=texts)
             except:
-                pass
-            try:
-                comments = comment.objects.get(id = tocomment)
-                serializer.save(owner=request.user, text=texts, toComment=comments)
-            except:
-                serializer.save(owner=request.user, text=texts)
+                Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -9,6 +9,7 @@ djangorestframework = "*"
 httpie = "*"
 locust = "*"
 django-cors-headers = "*"
+celery = {extras = ["redis"], version = "*"}
 
 [dev-packages]
 
