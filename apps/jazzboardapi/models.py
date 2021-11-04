@@ -1,4 +1,3 @@
-from django.contrib.auth.models import AnonymousUser
 from django.db import models
 from rest_framework import authentication
 
@@ -24,8 +23,3 @@ class comment(models.Model):
 
     def __str__(self):
         return '%d' % (self.id)
-
-class chat(models.Model):
-    content = models.TextField()
-    owner = models.ForeignKey('auth.User', related_name='chat_from', on_delete=models.CASCADE)
-    toOwner = models.ForeignKey('auth.User', related_name='chat_to', on_delete=models.CASCADE)

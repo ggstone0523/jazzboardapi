@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import comment, text, chat
+from .models import comment, text
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -30,11 +30,3 @@ class TextCommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = text
         fields = ['id', 'title', 'hidden', 'anonymous', 'content', 'create_date', 'owner', 'comment']
-
-class ChatSerializer(serializers.ModelSerializer):
-    owner = serializers.ReadOnlyField(source='owner.username')
-    toOwner = serializers.ReadOnlyField(source='toOwner.username')
-
-    class Meta:
-        model = chat
-        fields = ['id', 'content', 'owner', 'toOwner']

@@ -12,8 +12,6 @@ urlpatterns = [
     path('accountdelete/', views.accountDelete.as_view()),
     path('comments/', views.CommentList.as_view()),
     path('commentsDetail/<int:pk>/', views.CommentDetail.as_view()),
-    path('chatget/', views.ChatGet.as_view()),
-    path('chatpost/', views.ChatPost.as_view()),
 ]
 
 urlpatterns = format_suffix_patterns(urlpatterns)
